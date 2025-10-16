@@ -74,8 +74,8 @@ def trending_influencers(tag: Optional[str] = None, location: Optional[str] = No
         })
     return out
 
-@router.put("/{brand_id}/update", response_model=BrandOut)
-def update_brand(brand_id: str, payload: BrandCreateUpdate, authorization: Optional[str] = Header(None), db: Session = Depends(get_db)):
+@router.put("/update", response_model=BrandOut)
+def update_brand(payload: BrandCreateUpdate, authorization: Optional[str] = Header(None), db: Session = Depends(get_db)):
     if not authorization:
         raise HTTPException(status_code=401, detail="Missing authorization")
     try:
@@ -88,20 +88,26 @@ def update_brand(brand_id: str, payload: BrandCreateUpdate, authorization: Optio
     user = db.query(User).filter(User.id == payload_token.get("sub")).first()
     if not user or user.role != "brand":
         raise HTTPException(status_code=403, detail="Only brand users can update brand profile")
-
-    brand = db.query(Brand).filter(Brand.id == brand_id).first()
+    brand = db.query(Brand).filter(Brand.user_id == user.id).first()
     if not brand:
-        brand = Brand(id=brand_id, user_id=user.id)
+        brand = Brand(user_id=user.id)
         db.add(brand)
         db.commit()
         db.refresh(brand)
 
-    if brand.user_id != user.id:
-        raise HTTPException(status_code=403, detail="Cannot update another brand")
-
     for key, value in payload.dict(exclude_unset=True).items():
         setattr(brand, key, value)
+    if payload.name is not None:
+        user.name = payload.name
+    if payload.email is not None:
+        user.email = payload.email
+    if payload.tag is not None:
+        user.tag = payload.tag
+    if payload.location is not None:
+        user.location = payload.location
+
     db.add(brand)
+    db.add(user)
     db.commit()
     db.refresh(brand)
     return brand

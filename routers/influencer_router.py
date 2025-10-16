@@ -65,20 +65,18 @@ def suggested_brands(authorization: Optional[str] = Header(None), db: Session = 
     results = q.all()
     return results
 
-@router.put("/{influencer_id}/update", response_model=InfluencerOut)
-def update_influencer(influencer_id: str, payload: InfluencerCreateUpdate, authorization: Optional[str] = Header(None), db: Session = Depends(get_db)):
+@router.put("/update", response_model=InfluencerOut)
+def update_influencer(payload: InfluencerCreateUpdate, authorization: Optional[str] = Header(None), db: Session = Depends(get_db)):
     user = get_current_user(authorization, db)
+
     if user.role != "influencer":
         raise HTTPException(status_code=403, detail="Only influencer role can update influencer profile")
-    infl = db.query(Influencer).filter(Influencer.id == influencer_id).first()
+    infl = db.query(Influencer).filter(Influencer.user_id == user.id).first()
     if not infl:
-        infl = Influencer(id=influencer_id, user_id=user.id)
+        infl = Influencer(user_id=user.id)
         db.add(infl)
         db.commit()
         db.refresh(infl)
-
-    if infl.user_id != user.id:
-        raise HTTPException(status_code=403, detail="Cannot update another influencer")
 
     if payload.reach is not None:
         infl.reach = payload.reach
@@ -86,7 +84,17 @@ def update_influencer(influencer_id: str, payload: InfluencerCreateUpdate, autho
         infl.verified = payload.verified
     if payload.email:
         infl.email = payload.email
+    if payload.email is not None:
+        user.email = payload.email
+    if payload.name is not None:
+        user.name = payload.name
+    if payload.tag is not None:
+        user.tag = payload.tag
+    if payload.location is not None:
+        user.location = payload.location
+
     db.add(infl)
+    db.add(user)
     db.commit()
     db.refresh(infl)
     return infl
