@@ -84,7 +84,17 @@ def update_influencer(payload: InfluencerCreateUpdate, authorization: Optional[s
         infl.verified = payload.verified
     if payload.email:
         infl.email = payload.email
+    if payload.email is not None:
+        user.email = payload.email
+    if payload.name is not None:
+        user.name = payload.name
+    if payload.tag is not None:
+        user.tag = payload.tag
+    if payload.location is not None:
+        user.location = payload.location
+
     db.add(infl)
+    db.add(user)
     db.commit()
     db.refresh(infl)
     return infl

@@ -6,6 +6,9 @@ class InfluencerCreateUpdate(BaseModel):
     reach: Optional[int] = 0
     verified: Optional[bool] = False
     email: Optional[EmailStr] = None
+    name: Optional[str] = None
+    tag: Optional[str] = None
+    location: Optional[str] = None
 
 class InfluencerOut(BaseModel):
     id: str
