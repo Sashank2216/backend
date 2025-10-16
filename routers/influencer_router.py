@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 from models.influencer import Influencer
 from models.brand import Brand
 from models.user import User
-from schemas.influencer_schema import InfluencerCreateUpdate, InfluencerOut
+from schemas.influencer_schema import InfluencerCreateUpdate, InfluencerOut, InfluencerFullOut
 from utils.token_utils import decode_token
 from fastapi import Header
 
@@ -33,23 +33,54 @@ def get_current_user(authorization: Optional[str] = Header(None), db: Session = 
         raise HTTPException(status_code=401, detail="User not found")
     return user
 
-@router.get("/filter", response_model=List[InfluencerOut])
-def filter_influencers(tag: Optional[str] = None,
-                       location: Optional[str] = None,
-                       name: Optional[str] = None,
-                       min_reach: Optional[int] = Query(None, alias="reach"),
-                       db: Session = Depends(get_db)):
-    q = db.query(Influencer).join(User, Influencer.user_id == User.id)
-    if tag:
-        q = q.filter(User.tag == tag)
-    if location:
-        q = q.filter(User.location == location)
-    if name:
-        q = q.filter(User.name.ilike(f"%{name}%"))
+@router.get("/filter", response_model=List[InfluencerFullOut])
+def filter_influencers(
+    # User table filters
+    user_name: Optional[str] = None,
+    user_email: Optional[str] = None,
+    user_tag: Optional[str] = None,
+    user_location: Optional[str] = None,
+    user_role: Optional[str] = None,
+    # Influencer table filters
+    min_reach: Optional[int] = Query(None, alias="reach"),
+    verified: Optional[bool] = None,
+    influencer_email: Optional[str] = None,
+    db: Session = Depends(get_db)
+):
+    q = db.query(Influencer, User).join(User, Influencer.user_id == User.id)
+    if user_name:
+        q = q.filter(User.name.ilike(f"%{user_name}%"))
+    if user_email:
+        q = q.filter(User.email.ilike(f"%{user_email}%"))
+    if user_tag:
+        q = q.filter(User.tag == user_tag)
+    if user_location:
+        q = q.filter(User.location == user_location)
+    if user_role:
+        q = q.filter(User.role == user_role)
     if min_reach is not None:
         q = q.filter(Influencer.reach >= min_reach)
-    results = q.all()
-    return results
+    if verified is not None:
+        q = q.filter(Influencer.verified == verified)
+    if influencer_email:
+        q = q.filter(Influencer.email.ilike(f"%{influencer_email}%"))
+    rows = q.all()
+    out = []
+    for infl, user in rows:
+        out.append({
+            "user_id": user.id,
+            "user_name": user.name,
+            "user_email": user.email,
+            "user_tag": user.tag,
+            "user_location": user.location,
+            "user_role": user.role,
+            "user_created_at": user.created_at,
+            "influencer_id": infl.id,
+            "reach": infl.reach,
+            "verified": infl.verified,
+            "influencer_email": infl.email,
+        })
+    return out
 
 @router.get("/suggestions", response_model=List[dict])
 def suggested_brands(authorization: Optional[str] = Header(None), db: Session = Depends(get_db)):
