@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 from models.brand import Brand
 from models.influencer import Influencer
 from models.user import User
-from schemas.brand_schema import BrandCreateUpdate, BrandOut
+from schemas.brand_schema import BrandCreateUpdate, BrandOut, BrandFullOut
 from utils.token_utils import decode_token
 from fastapi import Header
 
@@ -33,24 +33,70 @@ def get_current_user(authorization: Optional[str] = Header(None), db: Session = 
         raise HTTPException(status_code=401, detail="User not found")
     return user
 
-@router.get("/filter", response_model=List[BrandOut])
-def filter_brands(name: Optional[str] = None,
-                  tag: Optional[str] = None,
-                  location: Optional[str] = None,
-                  event_date: Optional[str] = None,
-                  db: Session = Depends(get_db)):
-    q = db.query(Brand).join(User, Brand.user_id == User.id)
-    if name:
-        q = q.filter(Brand.name.ilike(f"%{name}%"))
-    if tag:
-        q = q.filter(Brand.tag == tag)
-    if location:
-        q = q.filter(Brand.location == location)
+@router.get("/filter", response_model=List[BrandFullOut])
+def filter_brands(
+    # User table filters
+    user_name: Optional[str] = None,
+    user_email: Optional[str] = None,
+    user_tag: Optional[str] = None,
+    user_location: Optional[str] = None,
+    user_role: Optional[str] = None,
+    # Brand table filters
+    brand_name: Optional[str] = None,
+    brand_email: Optional[str] = None,
+    phone_number: Optional[str] = None,
+    brand_tag: Optional[str] = None,
+    brand_location: Optional[str] = None,
+    event_date: Optional[str] = None,
+    db: Session = Depends(get_db)
+):
+    q = db.query(Brand, User).join(User, Brand.user_id == User.id)
+    # user filters
+    if user_name:
+        q = q.filter(User.name.ilike(f"%{user_name}%"))
+    if user_email:
+        q = q.filter(User.email.ilike(f"%{user_email}%"))
+    if user_tag:
+        q = q.filter(User.tag == user_tag)
+    if user_location:
+        q = q.filter(User.location == user_location)
+    if user_role:
+        q = q.filter(User.role == user_role)
+    # brand filters
+    if brand_name:
+        q = q.filter(Brand.name.ilike(f"%{brand_name}%"))
+    if brand_email:
+        q = q.filter(Brand.email.ilike(f"%{brand_email}%"))
+    if phone_number:
+        q = q.filter(Brand.phone_number.ilike(f"%{phone_number}%"))
+    if brand_tag:
+        q = q.filter(Brand.tag == brand_tag)
+    if brand_location:
+        q = q.filter(Brand.location == brand_location)
     if event_date:
-        from sqlalchemy import and_, or_
         q = q.filter(Brand.event_start <= event_date).filter(Brand.event_end >= event_date)
-    results = q.all()
-    return results
+
+    rows = q.all()
+    out = []
+    for brand, user in rows:
+        out.append({
+            "user_id": user.id,
+            "user_name": user.name,
+            "user_email": user.email,
+            "user_tag": user.tag,
+            "user_location": user.location,
+            "user_role": user.role,
+            "user_created_at": user.created_at,
+            "brand_id": brand.id,
+            "brand_name": brand.name,
+            "brand_email": brand.email,
+            "phone_number": brand.phone_number,
+            "brand_tag": brand.tag,
+            "brand_location": brand.location,
+            "event_start": brand.event_start,
+            "event_end": brand.event_end,
+        })
+    return out
 
 @router.get("/trending", response_model=List[dict])
 def trending_influencers(tag: Optional[str] = None, location: Optional[str] = None, db: Session = Depends(get_db)):
